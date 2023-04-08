@@ -1,52 +1,28 @@
-import './App.css';
+// import './App.css';
+import { MCTSBot } from 'boardgame.io/ai';
+import { Local } from 'boardgame.io/multiplayer';
+import { Client } from 'boardgame.io/react';
 
-import React, { useState } from 'react';
+import { Board } from './components/CheckerTable';
+import { Dama } from './Game/Game';
 
-import logo from './logo.svg';
+const TicTacToeClient = Client({
+  game: Dama,
+  board: Board,
+  debug: false,
+  // multiplayer: Local({
+  //   bots: {
+  //     1: MCTSBot,
+  //   },
+  // }),
+  multiplayer: Local(),
+});
 
 function App() {
-  const [count, setCount] = useState(0);
-
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p className="header">
-          🚀 Vite + React + Typescript 🤘 & <br />
-          Eslint 🔥+ Prettier
-        </p>
-
-        <div className="body">
-          <button onClick={() => setCount((count) => count + 1)}>
-            🪂 Click me : {count}
-          </button>
-
-          <p> Don&apos;t forgot to install Eslint and Prettier in Your Vscode.</p>
-
-          <p>
-            Mess up the code in <code>App.tsx </code> and save the file.
-          </p>
-          <p>
-            <a
-              className="App-link"
-              href="https://reactjs.org"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learn React
-            </a>
-            {' | '}
-            <a
-              className="App-link"
-              href="https://vitejs.dev/guide/features.html"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Vite Docs
-            </a>
-          </p>
-        </div>
-      </header>
+    <div className="flex flex-row justify-center items-center min-w-screen min-h-screen">
+      <TicTacToeClient playerID="0" />
+      <TicTacToeClient playerID="1" />
     </div>
   );
 }
