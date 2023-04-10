@@ -1,4 +1,4 @@
-import { GameState } from '../Game/Game';
+import { GameState } from '../../Game/Game';
 
 export const getPossibleMoves = (row: number, col: number, G: GameState) => {
   if (G.emptyCells && G.emptyCells.length > 0) {

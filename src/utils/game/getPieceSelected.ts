@@ -1,4 +1,4 @@
-import { GameState } from '../Game/Game';
+import { GameState } from '../../Game/Game';
 
 export const getPieceSelected = (row: number, col: number, G: GameState) => {
   if (

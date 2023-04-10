@@ -82,10 +82,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { BoardProps } from 'boardgame.io/react';
 
 import { GameState } from '../Game/Game';
-import { getPieceInfo } from '../utils/getPieceInfo';
-import { getPieceSelected } from '../utils/getPieceSelected';
-import { getPossibleMoves } from '../utils/getPossibleMoves';
-import { getSquareColor } from '../utils/getSquareColor';
+import { getPieceInfo } from '../utils/game/getPieceInfo';
+import { getPieceSelected } from '../utils/game/getPieceSelected';
+import { getPossibleMoves } from '../utils/game/getPossibleMoves';
+import { getSquareColor } from '../utils/game/getSquareColor';
 
 export const Board = (props: BoardProps<GameState>) => {
   const { G, moves, playerID, isActive } = props;
@@ -108,6 +108,21 @@ export const Board = (props: BoardProps<GameState>) => {
     moves.selectPiece(row, col);
   };
 
+  const onMovePiece = (row: number, col: number) => {
+    if (!isActive) return;
+    // if (
+    //   (G.currentPlayer === 0 && G.board[row][col] !== 'W') ||
+    //   (G.currentPlayer === 1 && G.board[row][col] !== 'B') ||
+    //   G.board[row][col] === null
+    // ) {
+    //   return;
+    // }
+    // if (G.board[row][col] === null || G.currentPlayer !== Number(playerID)) {
+    //   return;
+    // }
+    moves.movePiece(row, col);
+  };
+
   return (
     <div className="flex flex-col border border-black">
       {G.board.map((row, rowIndex) => {
@@ -123,7 +138,6 @@ export const Board = (props: BoardProps<GameState>) => {
                     rowIndex,
                     colIndex,
                   )}`}
-                  onClick={() => handleClick(rowIndex, colIndex)}
                 >
                   {piece && (
                     <button
@@ -137,6 +151,7 @@ export const Board = (props: BoardProps<GameState>) => {
                         colIndex,
                         G,
                       )}`}
+                      onClick={() => handleClick(rowIndex, colIndex)}
                     >
                       {(piece === 'WK' || piece === 'BK') && (
                         <FontAwesomeIcon icon={faCrown} color="gray" />
@@ -144,7 +159,10 @@ export const Board = (props: BoardProps<GameState>) => {
                     </button>
                   )}
                   {possibleMoves === 'selectedCell' && (
-                    <div className="flex justify-center items-center w-4/6 h-4/6 rounded-full bg-inherit border-4 border-yellow-100 blur-[1px]"></div>
+                    <button
+                      className="flex justify-center items-center w-4/6 h-4/6 rounded-full bg-inherit border-4 border-yellow-100 blur-[1px]"
+                      onClick={() => onMovePiece(rowIndex, colIndex)}
+                    ></button>
                   )}
                 </div>
               );

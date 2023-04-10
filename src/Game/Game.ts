@@ -71,6 +71,8 @@
 import { Game } from 'boardgame.io';
 import { INVALID_MOVE } from 'boardgame.io/core';
 
+import { promoteToKing } from '../utils/game/promoteToKing';
+
 export interface GameState {
   board: (string | null)[][];
   currentPlayer: number;
@@ -90,47 +92,24 @@ export interface GameState {
   forcedMove: boolean;
 }
 
-// const isPathClear = (G: GameState, fromRow: number, fromCol: number) => {
-//   const directions = [
-//     [1, 1], // check diagonal down-right
-//     [1, -1], // check diagonal down-left
-//     [-1, 1], // check diagonal up-right
-//     [-1, -1], // check diagonal up-left
-//   ];
-
-//   for (let i = 0; i < directions.length; i++) {
-//     const [rowDirection, colDirection] = directions[i];
-//     const row = fromRow + rowDirection;
-//     const col = fromCol + colDirection;
-
-//     if (
-//       row >= 0 &&
-//       row < G.board.length &&
-//       col >= 0 &&
-//       col < G.board[0].length &&
-//       G.board[row][col] === null
-//     ) {
-//       // found an empty cell diagonally adjacent to the selected piece
-//       return true;
-//     }
-//   }
-
-//   // no empty cells found diagonally adjacent to the selected piece
-//   return false;
-// };
-
 const isPathClear = (G: GameState, fromRow: number, fromCol: number) => {
-  const directions = [
-    [1, 1], // check diagonal down-right
-    [1, -1], // check diagonal down-left
-    [-1, 1], // check diagonal up-right
-    [-1, -1], // check diagonal up-left
-  ];
+  const emptyDiagonalCells: { row: number; col: number }[] = [];
+  const opponent = G.currentPlayer === 0 ? 'B' : 'W';
+  const player = G.currentPlayer; // assuming there are only 2 players
 
-  const emptyDiagonalCells = [];
+  // check forward diagonals based on the current player
+  const forwardDirections =
+    player === 0
+      ? [
+          [-1, 1],
+          [-1, -1],
+        ]
+      : [
+          [1, 1],
+          [1, -1],
+        ];
 
-  for (let i = 0; i < directions.length; i++) {
-    const [rowDirection, colDirection] = directions[i];
+  forwardDirections.some(([rowDirection, colDirection]) => {
     const row = fromRow + rowDirection;
     const col = fromCol + colDirection;
 
@@ -139,12 +118,24 @@ const isPathClear = (G: GameState, fromRow: number, fromCol: number) => {
       row < G.board.length &&
       col >= 0 &&
       col < G.board[0].length &&
+      G.board[row][col] === opponent &&
+      G.board[row + rowDirection][col + colDirection] === null
+    ) {
+      emptyDiagonalCells.push({ row: row + rowDirection, col: col + colDirection });
+      return true;
+    } else if (
+      // G.forcedMove === false &&
+      row >= 0 &&
+      row < G.board.length &&
+      col >= 0 &&
+      col < G.board[0].length &&
       G.board[row][col] === null
     ) {
-      // found an empty cell diagonally adjacent to the selected piece
+      // found an empty cell diagonally forward to the selected piece
       emptyDiagonalCells.push({ row, col });
+      // return true; // stop iterating
     }
-  }
+  });
 
   // return an array of empty diagonal cells, or an empty array if none were found
   return emptyDiagonalCells;
@@ -153,32 +144,60 @@ const isPathClear = (G: GameState, fromRow: number, fromCol: number) => {
 const getEmptyDiagonalCells = (G: GameState, currentPlayer: number) => {
   const piece = currentPlayer === 0 ? 'W' : 'B';
   const emptyDiagonalCells: { row: number; col: number }[] = [];
-  G.board.forEach((row, rowIndex) => {
-    row.forEach((cell, colIndex) => {
+
+  G.board.some((row, rowIndex) => {
+    return row.some((cell, colIndex) => {
       if (cell === piece) {
-        const directions = [
-          [1, 1],
-          [1, -1],
-          [-1, 1],
-          [-1, -1],
-        ];
-        directions.forEach(([rowDirection, colDirection]) => {
+        // const directions = [
+        //   [1, 1],
+        //   [1, -1],
+        //   [-1, 1],
+        //   [-1, -1],
+        // ];
+        const forwardDirections =
+          G.currentPlayer === 0
+            ? [
+                [-1, 1],
+                [-1, -1],
+              ]
+            : [
+                [1, 1],
+                [1, -1],
+              ];
+
+        return forwardDirections.some(([rowDirection, colDirection]) => {
           const newRow = rowIndex + rowDirection;
           const newCol = colIndex + colDirection;
+          const opponent = G.currentPlayer === 0 ? 'B' : 'W';
+
           if (
+            newRow >= 0 &&
+            newRow < G.board.length &&
+            newCol >= 0 &&
+            newCol < G.board[0].length &&
+            G.board[newRow][newCol] === opponent && // Check if there's an opponent piece adjacent to the current player's piece
+            G.board[newRow + rowDirection][newCol + colDirection] === null // Check if the current player's piece can jump over the adjacent opponent piece
+          ) {
+            emptyDiagonalCells.length = 0;
+
+            emptyDiagonalCells.push({ row: rowIndex, col: colIndex });
+            G.forcedMove = true;
+            return true; // break out of directions.some() and end the loop
+          } else if (
             newRow >= 0 &&
             newRow < G.board.length &&
             newCol >= 0 &&
             newCol < G.board[0].length &&
             G.board[newRow][newCol] === null
           ) {
-            emptyDiagonalCells.push({ row: rowIndex, col: colIndex });
+            emptyDiagonalCells.push({ row: rowIndex, col: colIndex }); // There's no opponent piece adjacent to current player's piece and return all the possible moves
           }
+          return false;
         });
       }
+      return false;
     });
   });
-
   return emptyDiagonalCells;
 };
 
@@ -191,7 +210,8 @@ export function isLegalMove(
 ) {
   const piece = G.board[fromRow][fromCol];
   const opponent = G.currentPlayer === 0 ? 'B' : 'W';
-  const isKing = (piece === 'W' && toRow === 0) || (piece === 'B' && toRow === 7);
+  const isKing = piece === 'WK' || piece === 'BK';
+  // const isKing = (piece === 'W' && toRow === 0) || (piece === 'B' && toRow === 7);
 
   // Check if the move is a jump
   if (Math.abs(fromRow - toRow) === 2 && Math.abs(fromCol - toCol) === 2) {
@@ -202,7 +222,11 @@ export function isLegalMove(
   }
 
   // Check if the move is a regular move
-  if (Math.abs(fromRow - toRow) === 1 && Math.abs(fromCol - toCol) === 1) {
+  if (
+    Math.abs(fromRow - toRow) === 1 &&
+    Math.abs(fromCol - toCol) === 1
+    // G.forcedMove === false
+  ) {
     return G.board[toRow][toCol] === null && (!isKing || toRow < fromRow);
   }
 
@@ -215,34 +239,41 @@ export function getValidJumps(G: GameState, row: number, col: number) {
   const isKing = (piece === 'W' && row === 0) || (piece === 'B' && row === 7);
   const jumps = [];
 
+  // Check if the piece can jump to the upper-left
   if (
-    row >= 2 &&
-    col >= 2 &&
-    G.board[row - 1][col - 1] === opponent &&
-    G.board[row - 2][col - 2] === null
+    row >= 2 && // Make sure the piece is not on the top row or second row
+    col >= 2 && // Make sure the piece is not on the leftmost column or second column
+    G.board[row - 1][col - 1] === opponent && // Check if there is an opponent piece to the upper-left
+    G.board[row - 2][col - 2] === null // Check if the space to the upper-left is empty
   ) {
+    // If all conditions are met, add the coordinates of the jump to the array of valid jumps
     jumps.push({ row: row - 2, col: col - 2 });
   }
 
+  // Check if the piece can jump to the upper-right
   if (
-    row >= 2 &&
-    col <= 5 &&
-    G.board[row - 1][col + 1] === opponent &&
-    G.board[row - 2][col + 2] === null
+    row >= 2 && // Make sure the piece is not on the top row or second row
+    col <= 5 && // Make sure the piece is not on the rightmost column or second-to-right column
+    G.board[row - 1][col + 1] === opponent && // Check if there is an opponent piece to the upper-right
+    G.board[row - 2][col + 2] === null // Check if the space to the upper-right is empty
   ) {
+    // If all conditions are met, add the coordinates of the jump to the array of valid jumps
     jumps.push({ row: row - 2, col: col + 2 });
   }
 
+  // Check if the piece (which must be a king) can jump to the lower-left
   if (
-    row <= 5 &&
-    col >= 2 &&
-    isKing &&
-    G.board[row + 1][col - 1] === opponent &&
-    G.board[row + 2][col - 2] === null
+    row <= 5 && // Make sure the piece is not on the second-to-bottom row or bottom row
+    col >= 2 && // Make sure the piece is not on the leftmost column or second column
+    isKing && // Make sure the piece is a king
+    G.board[row + 1][col - 1] === opponent && // Check if there is an opponent piece to the lower-left
+    G.board[row + 2][col - 2] === null // Check if the space to the lower-left is empty
   ) {
+    // If all conditions are met, add the coordinates of the jump to the array of valid jumps
     jumps.push({ row: row + 2, col: col - 2 });
   }
 
+  // Check if the piece (which must be a king) can jump to the lower-right
   if (
     row <= 5 &&
     col <= 5 &&
@@ -281,6 +312,10 @@ export const Dama: Game<GameState> = {
     onBegin: ({ G, ctx }) => {
       const beginPossibleMoves = getEmptyDiagonalCells(G, Number(ctx.currentPlayer));
       G.beginPossibleMoves = beginPossibleMoves;
+
+      // Check if there's a king piece
+      const board = promoteToKing(G);
+      G.board = board;
     },
   },
   moves: {
@@ -306,29 +341,89 @@ export const Dama: Game<GameState> = {
         G.emptyCells = diagonalArrayCopy;
       }
     },
-    movePiece: ({ G }, row, col) => {
+    // movePiece: ({ G, events }, row, col) => {
+    //   // Ensure that a piece is selected and the move is legal
+
+    //   if (
+    //     G.selectedPiece === null ||
+    //     !isLegalMove(G, G.selectedPiece.row, G.selectedPiece.col, row, col)
+    //   ) {
+    //     console.log('not');
+    //     return G;
+    //   }
+
+    //   // Move the piece
+    //   G.board[row][col] = G.board[G.selectedPiece.row][G.selectedPiece.col];
+    //   if (G.forcedMove === true) {
+    //     // Calculate the row and column indices of the in-between cell
+    //     const inBetweenRow = Math.floor((G.selectedPiece.row + row) / 2);
+    //     const inBetweenCol = Math.floor((G.selectedPiece.col + col) / 2);
+
+    //     // Make the in-between cell null
+    //     G.board[inBetweenRow][inBetweenCol] = null;
+    //   }
+    //   G.board[G.selectedPiece.row][G.selectedPiece.col] = null;
+
+    //   // Check for forced jumps
+    //   const jumps = getValidJumps(G, row, col);
+    //   if (jumps.length > 0) {
+    //     G.selectedPiece = { row, col };
+    //   } else {
+    //     G.currentPlayer = (G.currentPlayer + 1) % 2;
+    //     G.selectedPiece = null;
+    //     events.endTurn();
+    //   }
+    //   G.emptyCells = null;
+    //   return G;
+    // },
+    movePiece: ({ G, events }, row, col) => {
       // Ensure that a piece is selected and the move is legal
       if (
         G.selectedPiece === null ||
         !isLegalMove(G, G.selectedPiece.row, G.selectedPiece.col, row, col)
       ) {
+        console.log('not');
         return G;
       }
 
       // Move the piece
       G.board[row][col] = G.board[G.selectedPiece.row][G.selectedPiece.col];
+
+      // Handle forced moves
+      if (G.forcedMove) {
+        // Calculate the row and column indices of the in-between cell
+        const inBetweenRow = Math.floor((G.selectedPiece.row + row) / 2);
+        const inBetweenCol = Math.floor((G.selectedPiece.col + col) / 2);
+
+        // Make the in-between cell null
+        G.board[inBetweenRow][inBetweenCol] = null;
+
+        // Check for forced jumps
+        const jumps = getValidJumps(G, row, col);
+        if (jumps.length > 0) {
+          G.selectedPiece = { row, col };
+          G.emptyCells = null;
+          return G;
+        }
+      }
+
+      // Clear the selected piece's original position
       G.board[G.selectedPiece.row][G.selectedPiece.col] = null;
 
-      // Check for forced jumps
-      const jumps = getValidJumps(G, row, col);
-      if (jumps.length > 0) {
-        G.forcedMove = true;
-        G.selectedPiece = { row, col };
-      } else {
-        G.currentPlayer = (G.currentPlayer + 1) % 2;
-        G.selectedPiece = null;
-        G.forcedMove = false;
-      }
+      // Check for jumps
+      // const jumps = getValidJumps(G, row, col);
+      // if (jumps.length > 0) {
+      //   G.selectedPiece = { row, col };
+      //   G.emptyCells = null;
+      //   return G;
+      // }
+
+      // End the turn
+      G.currentPlayer = (G.currentPlayer + 1) % 2;
+      G.selectedPiece = null;
+      G.emptyCells = null;
+      G.forcedMove = false;
+      events.endTurn();
 
       return G;
     },

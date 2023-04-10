@@ -1,4 +1,4 @@
-import { GameState } from '../Game/Game';
+import { GameState } from '../../Game/Game';
 
 type PieceInfo = {
   [key: string]: string;
